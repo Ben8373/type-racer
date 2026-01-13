@@ -4,6 +4,7 @@
 (function () {
   let startTime = null;
   let isRunning = false;
+  let originalSampleText = ''; // Store original text for resetting
 
   function getElement(id) {
     return document.getElementById(id);
@@ -58,11 +59,71 @@
     }
   }
 
+  function highlightSampleText() {
+    const sampleDiv = getElement('sample-text');
+    const userInput = getElement('user-input');
+    if (!sampleDiv || !userInput) return;
+
+    // Use stored original text to avoid losing punctuation
+    const sampleText = originalSampleText || sampleDiv.textContent || '';
+    const typedText = userInput.value || '';
+
+    const sampleWords = sampleText.trim().split(/\s+/);
+    const typedWords = typedText.trim().split(/\s+/);
+
+    // Build highlighted HTML
+    const highlightedWords = sampleWords.map((word, index) => {
+      if (index >= typedWords.length) {
+        // Not yet typed - default color
+        return `<span>${word}</span>`;
+      }
+      
+      const typed = typedWords[index];
+      const sampleNorm = word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+      const typedNorm = typed.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+
+      if (sampleNorm === typedNorm) {
+        // Correct word - blue
+        return `<span style="color: #0d6efd; font-weight: bold;">${word}</span>`;
+      } else {
+        // Incorrect word - red
+        return `<span style="color: #dc3545; font-weight: bold;">${word}</span>`;
+      }
+    });
+
+    sampleDiv.innerHTML = highlightedWords.join(' ');
+  }
+
+  function resetSampleTextHighlight() {
+    const sampleDiv = getElement('sample-text');
+    if (!sampleDiv) return;
+    // Reset to original plain text
+    sampleDiv.innerHTML = '';
+    sampleDiv.textContent = originalSampleText;
+  }
+
+  function storeSampleText() {
+    const sampleDiv = getElement('sample-text');
+    if (sampleDiv) {
+      originalSampleText = sampleDiv.textContent || '';
+    }
+  }
+
   function startTest() {
     if (isRunning) return;
     isRunning = true;
     startTime = performance.now();
     setButtonStates({ startDisabled: true, stopDisabled: false, retryDisabled: true });
+    
+    // Store original text before highlighting starts
+    storeSampleText();
+    
+    // Enable real-time highlighting
+    const userInput = getElement('user-input');
+    if (userInput) {
+      userInput.addEventListener('input', highlightSampleText);
+      userInput.focus();
+    }
   }
 
   function stopTest() {
@@ -71,7 +132,8 @@
     const elapsedSeconds = (endTime - startTime) / 1000;
     updateTimeDisplay(elapsedSeconds);
 
-    const sampleText = (getElement('sample-text')?.textContent) || '';
+    // Use original text for WPM calculation
+    const sampleText = originalSampleText || (getElement('sample-text')?.textContent) || '';
     const typedText = (getElement('user-input')?.value) || '';
     const correctWords = countCorrectWords(sampleText, typedText);
     const wpm = elapsedSeconds > 0 ? (correctWords / elapsedSeconds) * 60 : 0;
@@ -80,6 +142,12 @@
 
     isRunning = false;
     setButtonStates({ startDisabled: false, stopDisabled: true, retryDisabled: false });
+
+    // Disable real-time highlighting
+    const userInput = getElement('user-input');
+    if (userInput) {
+      userInput.removeEventListener('input', highlightSampleText);
+    }
   }
 
   function resetTest() {
@@ -92,7 +160,9 @@
     if (input) {
       input.value = '';
       input.focus();
+      input.removeEventListener('input', highlightSampleText);
     }
+    resetSampleTextHighlight();
   }
 
   function wireEvents() {
@@ -126,6 +196,7 @@
     resetTest,
     updateTimeDisplay,
     updateLevelDisplay,
+    storeSampleText, // Expose for external text updates
   };
 })();
 document.addEventListener('DOMContentLoaded', function() {
@@ -170,8 +241,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         sampleTextDiv.textContent = selectedText;
 
-        if (window.TypeRacerTimer && typeof window.TypeRacerTimer.updateLevelDisplay === 'function') {
-          window.TypeRacerTimer.updateLevelDisplay();
+        // Update level display and store the new sample text
+        if (window.TypeRacerTimer) {
+            if (typeof window.TypeRacerTimer.updateLevelDisplay === 'function') {
+                window.TypeRacerTimer.updateLevelDisplay();
+            }
+            if (typeof window.TypeRacerTimer.storeSampleText === 'function') {
+                window.TypeRacerTimer.storeSampleText();
+            }
         }
     }
 
@@ -180,3 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize with a random text from the default difficulty level
     updateSampleText();
 });
+const userInput = getElement('user-input');
+if (userInput) {
+  userInput.addEventListener('input', highlightSampleText);
+}
