@@ -41,37 +41,12 @@ header {
     margin-bottom: 5px;
 }
 
-/* test-area styling */
-.test-area {
-    margin-bottom: 20px;
+/* typing feedback */
+
+.correct {
+    color: blue;
 }
 
-#sample-text {
-    background-color: #f8f9fa;
-    border-radius: 5px;
-    font-family: 'Courier New', monospace;
-    font-size: 1rem;
-    line-height: 1.6;
-    min-height: 80px;
-}
-
-#user-input {
-    font-family: 'Courier New', monospace;
-    border: 2px solid #ddd;
-    border-radius: 5px;
-}
-
-#user-input:focus {
-    border-color: #ff8400;
-    box-shadow: 0 0 5px rgba(255, 132, 0, 0.3);
-}
-
-/* difficulty selector */
-#difficulty {
-    border: 2px solid #ff8400;
-}
-
-#difficulty:focus {
-    border-color: #ff8400;
-    box-shadow: 0 0 5px rgba(255, 132, 0, 0.3);
+.incorrect {
+    color: red;
 }

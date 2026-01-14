@@ -1,205 +1,4 @@
-// TypeRacer timing logic
-// Records time between Start and Stop, updates UI, and manages buttons
-
-(function () {
-  let startTime = null;
-  let isRunning = false;
-  let originalSampleText = ''; // Store original text for resetting
-
-  function getElement(id) {
-    return document.getElementById(id);
-  }
-
-  function setButtonStates({ startDisabled, stopDisabled, retryDisabled }) {
-    const startBtn = getElement('start-btn');
-    const stopBtn = getElement('stop-btn');
-    const retryBtn = getElement('retry-btn');
-    if (startBtn) startBtn.disabled = !!startDisabled;
-    if (stopBtn) stopBtn.disabled = !!stopDisabled;
-    if (retryBtn) retryBtn.disabled = !!retryDisabled;
-  }
-
-  function updateTimeDisplay(seconds) {
-    const timeSpan = getElement('time');
-    if (timeSpan) {
-      timeSpan.textContent = seconds.toFixed(2);
-    }
-  }
-
-  function getNormalizedWords(text) {
-    return (text || '')
-      .trim()
-      .split(/\s+/)
-      .map(w => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, ''))
-      .filter(Boolean);
-  }
-
-  function countCorrectWords(sampleText, typedText) {
-    const sampleWords = getNormalizedWords(sampleText);
-    const typedWords = getNormalizedWords(typedText);
-    const len = Math.min(sampleWords.length, typedWords.length);
-    let correct = 0;
-    for (let i = 0; i < len; i++) {
-      if (typedWords[i] === sampleWords[i]) correct++;
-    }
-    return correct;
-  }
-
-  function updateWPMDisplay(wpm) {
-    const wpmSpan = getElement('wpm');
-    if (wpmSpan) wpmSpan.textContent = String(Math.round(wpm));
-  }
-
-  function updateLevelDisplay() {
-    const select = getElement('difficulty');
-    const levelSpan = getElement('level');
-    if (select && levelSpan) {
-      const label = select.value.charAt(0).toUpperCase() + select.value.slice(1);
-      levelSpan.textContent = label;
-    }
-  }
-
-  function highlightSampleText() {
-    const sampleDiv = getElement('sample-text');
-    const userInput = getElement('user-input');
-    if (!sampleDiv || !userInput) return;
-
-    // Use stored original text to avoid losing punctuation
-    const sampleText = originalSampleText || sampleDiv.textContent || '';
-    const typedText = userInput.value || '';
-
-    const sampleWords = sampleText.trim().split(/\s+/);
-    const typedWords = typedText.trim().split(/\s+/);
-
-    // Build highlighted HTML
-    const highlightedWords = sampleWords.map((word, index) => {
-      if (index >= typedWords.length) {
-        // Not yet typed - default color
-        return `<span>${word}</span>`;
-      }
-      
-      const typed = typedWords[index];
-      const sampleNorm = word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
-      const typedNorm = typed.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
-
-      if (sampleNorm === typedNorm) {
-        // Correct word - blue
-        return `<span style="color: #0d6efd; font-weight: bold;">${word}</span>`;
-      } else {
-        // Incorrect word - red
-        return `<span style="color: #dc3545; font-weight: bold;">${word}</span>`;
-      }
-    });
-
-    sampleDiv.innerHTML = highlightedWords.join(' ');
-  }
-
-  function resetSampleTextHighlight() {
-    const sampleDiv = getElement('sample-text');
-    if (!sampleDiv) return;
-    // Reset to original plain text
-    sampleDiv.innerHTML = '';
-    sampleDiv.textContent = originalSampleText;
-  }
-
-  function storeSampleText() {
-    const sampleDiv = getElement('sample-text');
-    if (sampleDiv) {
-      originalSampleText = sampleDiv.textContent || '';
-    }
-  }
-
-  function startTest() {
-    if (isRunning) return;
-    isRunning = true;
-    startTime = performance.now();
-    setButtonStates({ startDisabled: true, stopDisabled: false, retryDisabled: true });
-    
-    // Store original text before highlighting starts
-    storeSampleText();
-    
-    // Enable real-time highlighting
-    const userInput = getElement('user-input');
-    if (userInput) {
-      userInput.addEventListener('input', highlightSampleText);
-      userInput.focus();
-    }
-  }
-
-  function stopTest() {
-    if (!isRunning) return;
-    const endTime = performance.now();
-    const elapsedSeconds = (endTime - startTime) / 1000;
-    updateTimeDisplay(elapsedSeconds);
-
-    // Use original text for WPM calculation
-    const sampleText = originalSampleText || (getElement('sample-text')?.textContent) || '';
-    const typedText = (getElement('user-input')?.value) || '';
-    const correctWords = countCorrectWords(sampleText, typedText);
-    const wpm = elapsedSeconds > 0 ? (correctWords / elapsedSeconds) * 60 : 0;
-    updateWPMDisplay(wpm);
-    updateLevelDisplay();
-
-    isRunning = false;
-    setButtonStates({ startDisabled: false, stopDisabled: true, retryDisabled: false });
-
-    // Disable real-time highlighting
-    const userInput = getElement('user-input');
-    if (userInput) {
-      userInput.removeEventListener('input', highlightSampleText);
-    }
-  }
-
-  function resetTest() {
-    isRunning = false;
-    startTime = null;
-    updateTimeDisplay(0);
-    updateWPMDisplay(0);
-    setButtonStates({ startDisabled: false, stopDisabled: true, retryDisabled: true });
-    const input = getElement('user-input');
-    if (input) {
-      input.value = '';
-      input.focus();
-      input.removeEventListener('input', highlightSampleText);
-    }
-    resetSampleTextHighlight();
-  }
-
-  function wireEvents() {
-    const startBtn = getElement('start-btn');
-    const stopBtn = getElement('stop-btn');
-    const retryBtn = getElement('retry-btn');
-
-    if (startBtn) startBtn.addEventListener('click', startTest);
-    if (stopBtn) stopBtn.addEventListener('click', stopTest);
-    if (retryBtn) retryBtn.addEventListener('click', resetTest);
-  }
-
-  function init() {
-    wireEvents();
-    setButtonStates({ startDisabled: false, stopDisabled: true, retryDisabled: true });
-    updateTimeDisplay(0);
-    updateWPMDisplay(0);
-    updateLevelDisplay();
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-
-  // Expose named functions for clarity/testing if needed
-  window.TypeRacerTimer = {
-    startTest,
-    stopTest,
-    resetTest,
-    updateTimeDisplay,
-    updateLevelDisplay,
-    storeSampleText, // Expose for external text updates
-  };
-})();
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const easyTexts = [
         "The cat sat on the mat.",
         "A quick brown fox jumps over the lazy dog.",
@@ -216,11 +15,19 @@ document.addEventListener('DOMContentLoaded', function() {
         "It was the best of times, it was the worst of times.",
         "In the beginning God created the heavens and the earth.",
         "The only thing we have to fear is fear itself."
-
     ];
 
     const difficultySelect = document.getElementById('difficulty');
     const sampleTextDiv = document.getElementById('sample-text');
+    const timeDisplay = document.getElementById('time');
+    const userInput = document.getElementById('user-input');
+    const levelDisplay = document.getElementById('level');
+    const wpmDisplay = document.getElementById('wpm');
+    const retryButton = document.getElementById('retry-btn');
+
+    let startTime;
+    let endTime;
+    let testStarted = false;
 
     function getRandomText(textArray) {
         const randomIndex = Math.floor(Math.random() * textArray.length);
@@ -240,24 +47,92 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         sampleTextDiv.textContent = selectedText;
+    }
 
-        // Update level display and store the new sample text
-        if (window.TypeRacerTimer) {
-            if (typeof window.TypeRacerTimer.updateLevelDisplay === 'function') {
-                window.TypeRacerTimer.updateLevelDisplay();
+    function stopTest() {
+        endTime = new Date();
+        const timeTaken = (endTime - startTime) / 1000; // time in seconds
+        const wpm = calculateWPM(timeTaken);
+        
+        displayResults(timeTaken, wpm);
+
+        userInput.disabled = true;        
+        retryButton.disabled = false;
+        testStarted = false;
+    }
+
+    function calculateWPM(timeTaken) {
+        const sampleText = sampleTextDiv.textContent.trim();
+        const userText = userInput.value.trim();
+        const sampleWords = sampleText.split(" ");
+        const userWords = userText.split(" ");
+    
+        let correctWords = 0;
+        for (let i = 0; i < userWords.length; i++) {
+            if (userWords[i] === sampleWords[i]) {
+                correctWords++;
             }
-            if (typeof window.TypeRacerTimer.storeSampleText === 'function') {
-                window.TypeRacerTimer.storeSampleText();
+        }
+    
+        return Math.round((correctWords / timeTaken) * 60);
+    }
+
+    function displayResults(timeTaken, wpm) {
+        timeDisplay.textContent = timeTaken.toFixed(2);
+        wpmDisplay.textContent = wpm;
+        const selectedDifficulty = difficultySelect.value;
+        levelDisplay.textContent = selectedDifficulty.charAt(0).toUpperCase() + selectedDifficulty.slice(1);
+    }
+
+    function updateTypingFeedback() {
+
+        if (!testStarted) {
+            startTime = new Date();
+            testStarted = true;
+            retryButton.disabled = true;
+        }
+
+        const sampleText = sampleTextDiv.textContent.trim();
+        const userText = userInput.value.trim();
+        const sampleWords = sampleText.split(" ");
+        const userWords = userText.split(" ");
+    
+        let feedbackHTML = '';
+    
+        for (let i = 0; i < sampleWords.length; i++) {
+            if (userWords[i] === sampleWords[i]) {
+                feedbackHTML += `<span class="correct">${sampleWords[i]}</span> `;
+            } else if (userWords[i]) {
+                feedbackHTML += `<span class="incorrect">${sampleWords[i]}</span> `;
+            } else {
+                feedbackHTML += `<span>${sampleWords[i]}</span> `;
             }
+        }
+    
+        sampleTextDiv.innerHTML = feedbackHTML.trim();
+    }
+
+    function handleEnterKey(event) {
+        if (event.key === 'Enter') {
+            stopTest();
         }
     }
 
+    function resetTest() {
+        userInput.value = '';
+        userInput.disabled = false;
+        updateSampleText();
+        timeDisplay.textContent = '0';
+        wpmDisplay.textContent = '0';
+        testStarted = false;
+        retryButton.disabled = true;
+    }
+
     difficultySelect.addEventListener('change', updateSampleText);
+    userInput.addEventListener('input', updateTypingFeedback);
+    userInput.addEventListener('keydown', handleEnterKey);
+    retryButton.addEventListener('click', resetTest);
 
     // Initialize with a random text from the default difficulty level
     updateSampleText();
 });
-const userInput = getElement('user-input');
-if (userInput) {
-  userInput.addEventListener('input', highlightSampleText);
-}
